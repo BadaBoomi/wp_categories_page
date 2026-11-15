@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_SLUG="wp-categories-page"
+PLUGIN_DIR="${ROOT_DIR}/wp-content/plugins/${PLUGIN_SLUG}"
+MAIN_FILE="wp-categories-page.php"
+MAIN_PATH="${PLUGIN_DIR}/${MAIN_FILE}"
+DIST_DIR="${ROOT_DIR}/dist"
+BUILD_DIR="${ROOT_DIR}/.build"
+PACKAGE_DIR="${BUILD_DIR}/${PLUGIN_SLUG}"
+BUMP_TYPE="patch"
+
+usage() {
+  cat <<'EOF'
+Usage: build-plugin-zip.sh [--patch|--minor|--major]
+
+Options:
+  --patch   Increase patch version (default)
+  --minor   Increase minor version and reset patch to 0
+  --major   Increase major version and reset minor/patch to 0
+  -h, --help  Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --patch)
+      BUMP_TYPE="patch"
+      ;;
+    --minor)
+      BUMP_TYPE="minor"
+      ;;
+    --major)
+      BUMP_TYPE="major"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Error: Unknown option '$1'."
+      usage
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ ! -d "${PLUGIN_DIR}" ]]; then
+  echo "Error: plugin directory not found at ${PLUGIN_DIR}."
+  exit 1
+fi
+
+if [[ ! -f "${MAIN_PATH}" ]]; then
+  echo "Error: ${MAIN_FILE} not found in ${PLUGIN_DIR}."
+  exit 1
+fi
+
+CURRENT_VERSION="$(awk -F': ' '/^[[:space:]]*\*[[:space:]]*Version:/ {print $2; exit}' "${MAIN_PATH}" | tr -d '\r')"
+if [[ -z "${CURRENT_VERSION}" ]]; then
+  echo "Error: Could not detect plugin version in ${MAIN_PATH}."
+  exit 1
+fi
+
+if [[ "${CURRENT_VERSION}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+  MAJOR="${BASH_REMATCH[1]}"
+  MINOR="${BASH_REMATCH[2]}"
+  PATCH="${BASH_REMATCH[3]}"
+
+  case "${BUMP_TYPE}" in
+    patch)
+      NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+      ;;
+    minor)
+      NEXT_VERSION="${MAJOR}.$((MINOR + 1)).0"
+      ;;
+    major)
+      NEXT_VERSION="$((MAJOR + 1)).0.0"
+      ;;
+  esac
+else
+  echo "Error: Version '${CURRENT_VERSION}' is not semantic (x.y.z)."
+  exit 1
+fi
+
+if ! sed -i.bak -E "s/^([[:space:]]*\*[[:space:]]*Version:[[:space:]]*).*/\1${NEXT_VERSION}/" "${MAIN_PATH}"; then
+  echo "Error: Failed to update version in ${MAIN_PATH}."
+  exit 1
+fi
+
+if ! sed -i.bak -E "s/define\('WPCP_PLUGIN_VERSION', '[^']*'\);/define('WPCP_PLUGIN_VERSION', '${NEXT_VERSION}');/" "${MAIN_PATH}"; then
+  echo "Error: Failed to update version constant in ${MAIN_PATH}."
+  exit 1
+fi
+
+rm -f "${MAIN_PATH}.bak"
+
+ZIP_FILE="${DIST_DIR}/${PLUGIN_SLUG}-${NEXT_VERSION}.zip"
+
+rm -rf "${BUILD_DIR}"
+mkdir -p "${PACKAGE_DIR}" "${DIST_DIR}"
+
+if command -v rsync >/dev/null 2>&1; then
+  rsync -a \
+    --exclude='.git/' \
+    --exclude='.build/' \
+    --exclude='dist/' \
+    --exclude='*.zip' \
+    --exclude='.DS_Store' \
+    "${PLUGIN_DIR}/" "${PACKAGE_DIR}/"
+else
+  cp -a "${PLUGIN_DIR}/." "${PACKAGE_DIR}/"
+fi
+
+if command -v zip >/dev/null 2>&1; then
+  (
+    cd "${BUILD_DIR}"
+    zip -r "${ZIP_FILE}" "${PLUGIN_SLUG}" >/dev/null
+  )
+elif command -v python3 >/dev/null 2>&1; then
+  python3 - <<PY
+import os
+import zipfile
+
+package_dir = r"${PACKAGE_DIR}"
+zip_file = r"${ZIP_FILE}"
+plugin_slug = r"${PLUGIN_SLUG}"
+
+with zipfile.ZipFile(zip_file, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for root, _, files in os.walk(package_dir):
+        for name in files:
+            full_path = os.path.join(root, name)
+            rel_path = os.path.relpath(full_path, package_dir).replace(os.sep, "/")
+            zf.write(full_path, f"{plugin_slug}/{rel_path}")
+PY
+elif command -v powershell.exe >/dev/null 2>&1; then
+  BUILD_WIN="$(powershell.exe -NoProfile -Command "[System.IO.Path]::GetFullPath('${BUILD_DIR}')" | tr -d '\r\n')"
+  ZIP_WIN="$(powershell.exe -NoProfile -Command "[System.IO.Path]::GetFullPath('${ZIP_FILE}')" | tr -d '\r\n')"
+  powershell.exe -NoProfile -Command "Compress-Archive -Path '${BUILD_WIN}\\${PLUGIN_SLUG}' -DestinationPath '${ZIP_WIN}' -Force" >/dev/null
+else
+  echo "Error: no archiver found. Install 'zip' or 'python3'."
+  rm -rf "${BUILD_DIR}"
+  exit 1
+fi
+
+rm -rf "${BUILD_DIR}"
+
+echo "Created WordPress plugin archive: ${ZIP_FILE}"
+echo "Version bumped (${BUMP_TYPE}): ${CURRENT_VERSION} -> ${NEXT_VERSION}"
