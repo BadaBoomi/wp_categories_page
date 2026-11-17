@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Categories Page
  * Description: Verwaltung und Anzeige von Inhaltskategorien mit Shortcodes, WYSIWYG-Editoren und Styling-Optionen.
- * Version: 1.5.5
+ * Version: 1.5.8
  * Author: Heiko Dotzauer
  */
 
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('WPCP_PLUGIN_VERSION')) {
-    define('WPCP_PLUGIN_VERSION', '1.5.5');
+    define('WPCP_PLUGIN_VERSION', '1.5.8');
 }
 
 if (!class_exists('WP_Categories_Page')) {
@@ -211,6 +211,7 @@ if (!class_exists('WP_Categories_Page')) {
             $details_id = get_post_meta($post->ID, 'wpcp_detail_details_id', true);
             $detail_heading = get_post_meta($post->ID, 'wpcp_detail_heading', true);
             $selected_category_ref = get_post_meta($post->ID, 'wpcp_detail_category_ref', true);
+            $detail_theme_gradient = get_post_meta($post->ID, 'wpcp_detail_theme_gradient', true);
             $categories = get_posts(
                 array(
                     'post_type' => 'wpcp_category',
@@ -259,6 +260,10 @@ if (!class_exists('WP_Categories_Page')) {
                     <tr>
                         <th scope="row"><label for="wpcp_detail_details_id"><?php esc_html_e('Details ID', 'wp-categories-page'); ?>:</label></th>
                         <td><input type="text" class="widefat" id="wpcp_detail_details_id" name="wpcp_detail_details_id" value="<?php echo esc_attr($details_id); ?>" placeholder="wissen-eintrag-1" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="wpcp_detail_theme_gradient"><?php esc_html_e('Farbverlauf (Header/Nummer)', 'wp-categories-page'); ?>:</label></th>
+                        <td><input type="text" class="widefat" id="wpcp_detail_theme_gradient" name="wpcp_detail_theme_gradient" value="<?php echo esc_attr($detail_theme_gradient); ?>" placeholder="linear-gradient(140deg, #1f7a4d, #2aa6b8)" /></td>
                     </tr>
                     <tr>
                         <th colspan="2"><label><?php esc_html_e('Beschreibung', 'wp-categories-page'); ?>:</label></th>
@@ -397,6 +402,7 @@ if (!class_exists('WP_Categories_Page')) {
             $details_id = isset($_POST['wpcp_detail_details_id']) ? sanitize_text_field(wp_unslash($_POST['wpcp_detail_details_id'])) : '';
             $detail_heading = isset($_POST['wpcp_detail_heading']) ? sanitize_text_field(wp_unslash($_POST['wpcp_detail_heading'])) : '';
             $detail_category_ref = isset($_POST['wpcp_detail_category_ref']) ? sanitize_text_field(wp_unslash($_POST['wpcp_detail_category_ref'])) : '';
+            $detail_theme_gradient = isset($_POST['wpcp_detail_theme_gradient']) ? sanitize_text_field(wp_unslash($_POST['wpcp_detail_theme_gradient'])) : '';
             $description = isset($_POST['wpcp_detail_description']) ? wp_kses_post(wp_unslash($_POST['wpcp_detail_description'])) : '';
 
             update_post_meta($post_id, 'wpcp_detail_image_id', $image_id);
@@ -406,6 +412,7 @@ if (!class_exists('WP_Categories_Page')) {
             update_post_meta($post_id, 'wpcp_detail_details_id', $details_id);
             update_post_meta($post_id, 'wpcp_detail_heading', $detail_heading);
             update_post_meta($post_id, 'wpcp_detail_category_ref', $detail_category_ref);
+            update_post_meta($post_id, 'wpcp_detail_theme_gradient', $detail_theme_gradient);
             update_post_meta($post_id, 'wpcp_detail_description', $description);
         }
 
@@ -436,6 +443,7 @@ if (!class_exists('WP_Categories_Page')) {
             register_setting('wpcp_style_group', 'wpcp_overview_image_container_background');
             register_setting('wpcp_style_group', 'wpcp_overview_image_background');
             register_setting('wpcp_style_group', 'wpcp_detail_image_container_background');
+            register_setting('wpcp_style_group', 'wpcp_detail_header_background');
 
             add_settings_section(
                 'wpcp_style_section_typography',
@@ -462,6 +470,7 @@ if (!class_exists('WP_Categories_Page')) {
             add_settings_field('wpcp_overview_image_container_background', __('Kategorie Bild-Container Hintergrund', 'wp-categories-page'), array($this, 'render_overview_image_container_bg_field'), 'wpcp_style_group', 'wpcp_style_section_surfaces');
             add_settings_field('wpcp_overview_image_background', __('Kategorie Bild Hintergrund', 'wp-categories-page'), array($this, 'render_overview_image_bg_field'), 'wpcp_style_group', 'wpcp_style_section_surfaces');
             add_settings_field('wpcp_detail_image_container_background', __('Kategorie-Details Bild-Container Hintergrund', 'wp-categories-page'), array($this, 'render_detail_image_container_bg_field'), 'wpcp_style_group', 'wpcp_style_section_surfaces');
+            add_settings_field('wpcp_detail_header_background', __('Kategorie-Details Header-Hintergrund', 'wp-categories-page'), array($this, 'render_detail_header_bg_field'), 'wpcp_style_group', 'wpcp_style_section_surfaces');
         }
 
         private function get_font_preset_options() {
@@ -644,6 +653,11 @@ if (!class_exists('WP_Categories_Page')) {
             echo '<input type="text" class="regular-text" name="wpcp_detail_image_container_background" value="' . esc_attr($value) . '" placeholder="#f4f1e8 oder linear-gradient(...)" />';
         }
 
+        public function render_detail_header_bg_field() {
+            $value = get_option('wpcp_detail_header_background', 'rgba(255,255,255,0.4)');
+            echo '<input type="text" class="regular-text" name="wpcp_detail_header_background" value="' . esc_attr($value) . '" placeholder="rgba(255,255,255,0.4) oder linear-gradient(...)" />';
+        }
+
         public function render_settings_page() {
             if (!current_user_can('manage_options')) {
                 return;
@@ -704,7 +718,22 @@ if (!class_exists('WP_Categories_Page')) {
                 $raw_category = sanitize_text_field(wp_unslash($_GET['category']));
             }
             if ($raw_category === '') {
-                return '';
+                return '<script>
+                    (function () {
+                        var hash = window.location.hash ? window.location.hash.substring(1) : "";
+                        if (!hash) {
+                            return;
+                        }
+                        hash = decodeURIComponent(hash);
+                        var base = window.location.origin + window.location.pathname;
+                        var searchParams = new URLSearchParams(window.location.search);
+                        if (!searchParams.get("category")) {
+                            searchParams.set("category", hash);
+                            var nextUrl = base + "?" + searchParams.toString();
+                            window.location.replace(nextUrl);
+                        }
+                    })();
+                </script>';
             }
 
             $reference_key = ltrim($raw_category, '#');
@@ -765,6 +794,17 @@ if (!class_exists('WP_Categories_Page')) {
             foreach ($details as $index => $detail) {
                 $items_html[] = $this->render_detail_item($detail, $index + 1);
             }
+            $detail_theme_gradient = '';
+            foreach ($details as $detail) {
+                $candidate_gradient = trim((string) get_post_meta($detail->ID, 'wpcp_detail_theme_gradient', true));
+                if ($candidate_gradient !== '') {
+                    $detail_theme_gradient = $candidate_gradient;
+                    break;
+                }
+            }
+            $detail_wrapper_style = $detail_theme_gradient !== ''
+                ? ' style="--wpcp-detail-header-bg:' . esc_attr($detail_theme_gradient) . ';"'
+                : '';
 
             $filter_buttons = array();
             $filter_buttons[] = '<button class="wpcp-filter__button is-active" type="button" data-wpcp-filter="all">Alle</button>';
@@ -772,7 +812,7 @@ if (!class_exists('WP_Categories_Page')) {
                 $filter_buttons[] = '<button class="wpcp-filter__button" type="button" data-wpcp-filter="' . esc_attr(strtolower($label)) . '">' . esc_html($label) . '</button>';
             }
 
-            $html = '<div class="wpcp-detail"' . ($detail_section_id !== '' ? ' id="' . esc_attr($detail_section_id) . '"' : '') . '>'
+            $html = '<div class="wpcp-detail"' . ($detail_section_id !== '' ? ' id="' . esc_attr($detail_section_id) . '"' : '') . $detail_wrapper_style . '>'
                 . '<div class="wpcp-detail__header">'
                 . '<div class="wpcp-detail__content">'
                 . '<div class="wpcp-detail__eyebrow">Kategorie</div>'
@@ -863,7 +903,12 @@ if (!class_exists('WP_Categories_Page')) {
             $description = get_post_meta($detail->ID, 'wpcp_detail_description', true);
             $labels = (string) get_post_meta($detail->ID, 'wpcp_detail_labels', true);
             $details_id = sanitize_html_class((string) get_post_meta($detail->ID, 'wpcp_detail_details_id', true));
+            $detail_theme_gradient = trim((string) get_post_meta($detail->ID, 'wpcp_detail_theme_gradient', true));
             $title = $heading !== '' ? $heading : get_the_title($detail);
+            $formatted_number = str_pad((string) $number, 2, '0', STR_PAD_LEFT);
+            $number_style = $detail_theme_gradient !== ''
+                ? ' style="background:' . esc_attr($detail_theme_gradient) . '; color:#fff;"'
+                : '';
             $normalized_labels = array();
             foreach (preg_split('/[;,]/', $labels) as $label) {
                 $entry = trim((string) $label);
@@ -880,7 +925,7 @@ if (!class_exists('WP_Categories_Page')) {
             }
 
             return '<article class="wpcp-detail-item"' . ($details_id !== '' ? ' id="' . esc_attr($details_id) . '"' : '') . ' data-wpcp-labels="' . esc_attr(strtolower($labels)) . '">'
-                . '<div class="wpcp-detail-item__header"><span class="wpcp-detail-item__number">' . esc_html((string) $number) . '</span><h3>' . esc_html($title) . '</h3></div>'
+                . '<div class="wpcp-detail-item__header"><span class="wpcp-detail-item__number"' . $number_style . '>' . esc_html($formatted_number) . '</span><h3>' . esc_html($title) . '</h3></div>'
                 . (!empty($description) ? '<div class="wpcp-detail-item__description">' . wp_kses_post($description) . '</div>' : '')
                 . (!empty($url) ? '<div class="wpcp-detail-item__url"><a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Website öffnen', 'wp-categories-page') . '</a></div>' : '')
                 . $label_html
@@ -973,6 +1018,7 @@ if (!class_exists('WP_Categories_Page')) {
             $overview_image_container_background = get_option('wpcp_overview_image_container_background', '#f4f1e8');
             $overview_image_background = get_option('wpcp_overview_image_background', 'transparent');
             $detail_image_container_background = get_option('wpcp_detail_image_container_background', '#f4f1e8');
+            $detail_header_background = get_option('wpcp_detail_header_background', 'rgba(255,255,255,0.4)');
 
             $css = '<style>
                 .wpcp-category-plugin {
@@ -988,6 +1034,7 @@ if (!class_exists('WP_Categories_Page')) {
                     --wpcp-overview-image-container-bg: ' . esc_attr($overview_image_container_background) . ';
                     --wpcp-overview-image-bg: ' . esc_attr($overview_image_background) . ';
                     --wpcp-detail-image-container-bg: ' . esc_attr($detail_image_container_background) . ';
+                    --wpcp-detail-header-bg: ' . esc_attr($detail_header_background) . ';
                     line-height: 1.6;
                 }
                 .wpcp-category-plugin .wpcp-overview {
@@ -1210,7 +1257,7 @@ if (!class_exists('WP_Categories_Page')) {
                     grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
                     gap: 1.5rem;
                     align-items: center;
-                    background: rgba(255,255,255,0.4);
+                    background: var(--wpcp-detail-header-bg);
                     border: 1px solid var(--wpcp-card-border);
                     border-radius: 22px;
                     padding: 1.5rem;
@@ -1253,20 +1300,21 @@ if (!class_exists('WP_Categories_Page')) {
                 }
                 .wpcp-category-plugin .wpcp-detail-item__header {
                     display: flex;
-                    align-items: center;
-                    gap: 0.85rem;
+                    align-items: flex-start;
+                    gap: 14px;
                     margin-bottom: 0.85rem;
                 }
                 .wpcp-category-plugin .wpcp-detail-item__number {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 2.3rem;
-                    height: 2.3rem;
-                    border-radius: 50%;
+                    display: inline-grid;
+                    place-items: center;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: 14px;
                     background: rgba(31, 122, 77, 0.12);
                     color: var(--wpcp-detail-heading-color);
-                    font-weight: 700;
+                    font-weight: 800;
+                    font-size: 1.05rem;
+                    flex: none;
                 }
                 .wpcp-category-plugin .wpcp-detail-item__url {
                     margin-top: 1rem;

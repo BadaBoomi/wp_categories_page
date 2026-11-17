@@ -29,6 +29,7 @@ Hinweis:
   - category_overview / category_detail Einträge
   - Kategorie-Bild-Container (global)
   - Kategorie-Details-Bild-Container
+  - Kategorie-Details-Header (Überschrift, Beschreibung, Bild)
   gepflegt werden.
 - Der **Kategorie Bild-Hintergrund** wird pro Kategorie direkt im Kategorie-Eintrag gepflegt.
 - Schriftarten/Farben werden als Auswahl aus vorhandenen **Theme-** und (falls aktiv) **Elementor-Global-Presets** angeboten.
@@ -61,6 +62,7 @@ Felder:
 - Überschrift
 - Kategorie ID (Auswahl aus Kategorien)
 - Details ID
+- Farbverlauf (Header/Nummer) – optional, pro Kategorie-Detail
 - Bild
 - URL
 - Labels (durch `,` oder `;` trennen)
@@ -105,8 +107,11 @@ Optional für eine zentrale Detailseite:
 
 - `category`: Referenzwert (z. B. `#wissen` oder `wissen`)
 - Wenn `category` im Shortcode nicht gesetzt ist, wird automatisch `?category=<referenzwert>` aus der URL verwendet.
+- Wenn nur ein Hash vorhanden ist (z. B. `/empfehlungen-details#wissen`), wird dieser clientseitig automatisch in `?category=wissen` überführt.
 - Es werden genau die Kategorie-Details gerendert, deren **Details ID** dem Referenzwert entspricht.
 - Header (Überschrift, Beschreibung, Bild) wird aus der über **Kategorie ID** verknüpften Kategorie geladen.
+- Wenn in den passenden Kategorie-Details ein **Farbverlauf (Header/Nummer)** gesetzt ist, wird dieser auf den Header-Container angewendet und für die laufende Nummer in den Untereinträgen verwendet.
+- Die laufende Nummer wird zweistellig im Stil des Referenz-Layouts dargestellt (z. B. `01`, `02`).
 - Ausgabe:
   - Header mit Überschrift, Beschreibung, Bild
   - Filterleiste für vorhandene Labels
